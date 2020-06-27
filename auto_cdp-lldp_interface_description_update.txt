@@ -1,0 +1,70 @@
+event manager applet auto-update-port-description authorization bypass
+ description "Auto-update port-description based on CDP neighbor info"
+ event neighbor-discovery interface regexp .*Ethernet[0-9]/[\/0-9]+$ cdp add lldp add link-event all
+ action 0.0   comment "Event line regexp: Deside which interface to auto-update description on"
+ action 1.0   comment "Verify CDP neighbor to be Switch or Router"
+ action 1.1   comment "Trim domain name"
+ action 1.2   cli command "enable"
+ action 1.201 set TODAYSDATE ""
+ action 1.300 set TODAYSDATEORG ""
+ action 1.301 set int ""
+ action 1.302 set intI ""
+ action 1.350 file open filedate flash:/DateOfToday.txt r
+ action 1.351 file read filedate TODAYSDATEORG
+ action 1.352 regexp "([0-9]+)" "$TODAYSDATEORG" hm TODAYSDATE
+ action 2.000 comment "Convert long interface name to short"
+ action 2.001 string first "Ethernet" "$_nd_port_id"
+ action 2.002 if $_string_result eq "7"
+ action 2.003  string replace "$_nd_port_id" 0 14 "Gi"
+ action 2.004 elseif $_string_result eq 10
+ action 2.005  string replace "$_nd_port_id" 0 17 "Te"
+ action 2.006 elseif $_string_result eq 4
+ action 2.007  string replace "$_nd_port_id" 0 11 "Fa"
+ action 2.008 end
+ action 2.200 comment "get the lldp/cdp name and add port info to int"
+ action 2.202 if $_nd_lldp_system_name ne ""
+ action 2.203  set int "$_nd_lldp_system_name:$_nd_port_id"
+ action 2.204 elseif $_nd_cdp_entry_name ne ""
+ action 2.205  set int "$_nd_cdp_entry_name:$_string_result"
+ action 2.206 end
+ action 2.3   comment "get trunk or access port data"
+ action 2.30  cli command "sho int $_nd_local_intf_name switchport | i Administrative Mode:"
+ action 2.300 set crest "$_cli_result"
+ action 2.301 foreach VAR "$crest" "\n"
+ action 2.302  regexp "Administrative Mode: (trunk)" "$VAR"
+ action 2.303  if $_regexp_result eq "1"
+ action 2.304   set Port "Trunk:$TODAYSDATE - $int"
+ action 2.305  end
+ action 2.306  regexp "Administrative Mode: (static access)" "$VAR"
+ action 2.307  if $_regexp_result eq "1"
+ action 2.308   cli command "sho int $_nd_local_intf_name switchport"
+ action 2.309   set forcrest "$_cli_result"
+ action 2.310   foreach ACCESSVAR "$forcrest" "\n"
+ action 2.311    regexp "Access Mode VLAN: " "$ACCESSVAR"
+ action 2.312    if $_regexp_result eq "1"
+ action 2.313     set acc_port "<none>"
+ action 2.314     regexp " ([0-9]+ [\ \(\)a-zA-Z0-9:\/\-]+)" "$ACCESSVAR" acc_port
+ action 2.315     set Port "Access:$TODAYSDATE - $acc_port - $int"
+ action 2.316    end
+ action 2.317   end
+ action 2.318  end
+ action 2.319 end
+ action 4.0   comment "Check old description if any, and do no change if same host:int"
+ action 4.1   cli command "enable"
+ action 4.10  if $_nd_local_intf_name ne ""
+ action 4.2    cli command "show interface $_nd_local_intf_name | incl Description:"
+ action 4.21   set olddesc "<none>"
+ action 4.22   set olddesc_sub1 "<none>"
+ action 4.23   regexp "Description: (.+)\r" "$_cli_result" olddesc olddesc_sub1
+ action 4.24   string match "$Port" "$olddesc_sub1"
+ action 4.250  if $_string_result eq "1"
+ action 4.251   syslog msg "EEM script did NOT change desciption on $_nd_local_intf_name, since remote host and interface is unchanged"
+ action 4.252   exit 10
+ action 4.253  end
+ action 4.400  cli command "config t"
+ action 4.401  cli command "interface $_nd_local_intf_name"
+ action 4.402  cli command "Description $Port"
+ action 4.403  cli command "do write"
+ action 4.6    syslog msg "EEM script updated description on $_nd_local_intf_name from $olddesc to Description: $Port and saved config"
+ action 6.0    exit 1
+ action 6.1   end

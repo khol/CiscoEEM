@@ -1,0 +1,54 @@
+event manager applet check-dot1x-authentication authorization bypass
+ event syslog pattern ".*EPM-6-IPEVENT|EPM-6-POLICY_|DOT1X-5-SUCCESS|SISF-6-ENTRY|-UPDOWN.*"
+ action 1.1   comment "variables for later use"
+ action 1.101 set USERMACADDR ""
+ action 1.102 set MACTOINT ""
+ action 1.103 set DOT1XUSER ""
+ action 1.104 set DOT1XIP ""
+ action 1.105 set DOT1XAUTH ""
+ action 1.106 set MACTOVLAN ""
+ action 1.107 set TODAYSDATE ""
+ action 1.108 set TODAYSDATEORG ""
+ action 1.150 file open filedate flash:/DateOfToday.txt r
+ action 1.151 file read filedate TODAYSDATEORG
+ action 1.2   comment "get macadress from succeded client and search mac table for interface"
+ action 1.201 regexp ".*([a-f0-9][a-f0-9][a-f0-9][a-f0-9]\.[a-f0-9]+\.[a-f0-9][a-f0-9][a-f0-9][a-f0-9]).*" "$_syslog_msg" randommatch USERMACADDR
+ action 1.203 cli command "enable"
+ action 1.204 cli command "sho mac address-table | i $USERMACADDR"
+ action 1.205 regexp ".*\s+([FaGi]+[0-9\/]+).*" "$_cli_result" randommatch MACTOINT
+ action 1.352 regexp "([0-9]+)" "$TODAYSDATEORG" hm TODAYSDATE
+ action 2.000 comment "get user name from authenticated 1x"
+ action 2.010 cli command "show authentication sessions interface $MACTOINT details | include User-Name"
+ action 2.011 regexp ".*User-Name:\s+(.*\.se)" "$_cli_result" randommatch DOT1XUSER
+ action 2.013 string replace "$DOT1XUSER" 0 10 "-"
+ action 2.020 comment "get ip address from authenticated 1x user"
+ action 2.021 cli command "show authentication sessions interface $MACTOINT details | include IPv4 Address"
+ action 2.022 regexp ".*IPv4 Address:\s+([0-9\.]+)" "$_cli_result" randommatch DOT1XIP
+ action 2.023 string replace "$DOT1XIP" 0 10 "-"
+ action 2.030 comment "get status from authenticated 1x user"
+ action 2.031 cli command "show authentication sessions interface $MACTOINT details | include (.*)Authc"
+ action 2.032 regexp "\s+([A-Za-z1]+)\s+" "$_cli_result" randommatch DOT1XAUTH
+ action 2.033 string replace "$DOT1XAUTH" 0 10 "-"
+ action 2.040 comment "get vlan from authenticated 1x user"
+ action 2.041 cli command "sho int $MACTOINT switchport | i Access Mode VLAN:"
+ action 2.042 regexp " ([0-9]+ [\ \(\)a-zA-Z0-9:\/\-]+)" "$_cli_result" temp MACTOVLAN
+ action 2.050 comment "add all information to PORTINFO"
+ action 2.051 set PORTINFO "Access:$TODAYSDATE: - $MACTOVLAN - $DOT1XUSER - $DOT1XIP - $USERMACADDR - $DOT1XAUTH "
+ action 3.001 comment "add all information to PORTINFO"
+ action 3.008 if $MACTOINT ne ""
+ action 3.010  cli command "show interface $MACTOINT | incl Description:"
+ action 3.012  set olddesc "<none>"
+ action 3.013  set olddesc_sub1 "<none>"
+ action 3.014  regexp "Description: (.+)\r" "$_cli_result" olddesc olddesc_sub1
+ action 3.015  string match "$PORTINFO" "$olddesc_sub1"
+ action 3.020  if $_string_result eq "1"
+ action 3.021   syslog msg "EEM script did NOT change desciption on $MACTOINT, since remote host and interface is unchanged"
+ action 3.022   exit 10
+ action 3.023  end
+ action 3.030  cli command "config t"
+ action 3.031  cli command "interface $MACTOINT"
+ action 3.032  cli command "Description $PORTINFO"
+ action 3.033  cli command "do write"
+ action 3.040  syslog msg "EEM script updated description on $MACTOINT from $olddesc to Description: $PORTINFO and saved config"
+ action 3.050  exit 1
+ action 3.060 end

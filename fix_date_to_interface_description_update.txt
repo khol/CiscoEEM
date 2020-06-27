@@ -1,0 +1,48 @@
+event manager applet TodasDate
+ event timer cron cron-entry "1 0 * * *"
+ action 1.000 comment "cron job will run 1min over midnight evry day"
+ action 1.001 comment "all varibels during the script"
+ action 1.110 set WEEK ""
+ action 1.111 set DAG2 ""
+ action 1.112 set MONTH ""
+ action 1.113 set DAG ""
+ action 1.114 set YEAR ""
+ action 1.120 cli command "enable"
+ action 1.121 cli command "show clock"
+ action 1.122 regexp ".*[CET|UTC]\s+[A-Za-z]+\s+([A-Za-z0-9\s]+)" "$_cli_result" DAG2 WEEK
+ action 1.123 regexp "^([A-Za-z]+)\s.*" "$WEEK" DAG2 MONTH
+ action 1.124 regexp ".*\s+([0-9]+)\s+.*" "$WEEK" DAG2 DAG
+ action 1.125 regexp "\s+([0-9]+)$" "$WEEK" DAG2 YEAR
+ action 1.126 if $MONTH eq "Jan"
+ action 1.127  set MONTH "01"
+ action 1.128 elseif $MONTH eq Feb
+ action 1.129  set MONTH "02"
+ action 1.130 elseif $MONTH eq Mar
+ action 1.131  set MONTH "03"
+ action 1.132 elseif $MONTH eq Apr
+ action 1.133  set MONTH "04"
+ action 1.134 elseif $MONTH eq May
+ action 1.135  set MONTH "05"
+ action 1.136 elseif $MONTH eq Jun
+ action 1.137  set MONTH "06"
+ action 1.138 elseif $MONTH eq Jul
+ action 1.139  set MONTH "07"
+ action 1.140 elseif $MONTH eq Aug
+ action 1.141  set MONTH "08"
+ action 1.142 elseif $MONTH eq Sep
+ action 1.143  set MONTH "09"
+ action 1.144 elseif $MONTH eq Oct
+ action 1.145  set MONTH "10"
+ action 1.146 elseif $MONTH eq Nov
+ action 1.147  set MONTH "11"
+ action 1.148 elseif $MONTH eq Dec
+ action 1.149  set MONTH "12"
+ action 1.150 end
+ action 1.160 comment "add 0 if date of the day is <10"
+ action 1.161 if $DAG lt "10"
+ action 1.162  set DAG "0$DAG"
+ action 1.163 end
+ action 2.040 comment "add the date to file in flash"
+ action 2.041 file open fh flash:DateOfToday.txt w
+ action 2.042 file puts fh "$YEAR$MONTH$DAG"
+ action 2.043 file close fh
